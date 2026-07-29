@@ -4,18 +4,23 @@ A personal prototype of an AI-powered bookkeeping assistant: manual entry forms,
 a natural-language chat agent (Urdu/Roman Urdu/English), and generated reports
 (P&L, simplified balance sheet, monthly audit).
 
-> **Note:** this uses **Express + MongoDB** for speed. If this needs to satisfy
-> the intern assignment brief, that brief requires **FastAPI + PostgreSQL +
-> Pydantic + an agentic framework (LangGraph/CrewAI/OpenAI Agents SDK) +
-> Docker + a research paper + a Lucidchart/draw.io diagram** — none of which
-> this prototype provides. Keep this as a working reference/demo, not the
-> submission itself.
+# AI Accounting & Expense Assistant — Prototype
 
-## Stack
+A full-stack, AI-powered bookkeeping assistant: manual entry forms,
+a natural-language chat agent (Urdu / Roman Urdu / English), and generated financial reports
+(P&L, simplified balance sheet, monthly audit).
 
-- Frontend: Next.js 14 (App Router) + TypeScript + Tailwind CSS
-- Backend: Express + Mongoose (MongoDB)
-- AI: OpenAI `gpt-4o-mini` with function/tool calling as a lightweight agent loop
+---
+
+## Tech Stack
+
+- **Frontend:** Next.js 14 (App Router) + TypeScript + Tailwind CSS
+- **Backend:** Node.js + Express.js + Mongoose (MongoDB)
+- **Database:** MongoDB Atlas / Local MongoDB
+- **AI Integration:** Google Gemini API (`@google/genai` / `@google/generative-ai`) with function/tool calling as a lightweight agent loop
+
+---
+
 
 ## Project structure
 
