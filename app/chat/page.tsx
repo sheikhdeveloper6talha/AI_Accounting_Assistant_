@@ -22,13 +22,15 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
-      const data = await api.chat(trimmed, messages);
-      setMessages((prev) => [...prev, { role: "ai", text: data.reply }]);
-    } catch {
-      setMessages((prev) => [...prev, { role: "ai", text: "Maaf kijiye, abhi jawab nahi de saka. Backend/API key check karein." }]);
-    } finally {
-      setLoading(false);
-    }
+  const data = await api.chat(trimmed, messages);
+  setMessages((prev) => [...prev, { role: "ai", text: data.reply }]);
+} catch (err: any) {
+  // Ab server se aaya hua "Boht tez requests aa rahi hain..." yahan show hoga!
+  const errorMessage = err.message || "Maaf kijiye, abhi jawab nahi de saka. Backend/API key check karein.";
+  setMessages((prev) => [...prev, { role: "ai", text: errorMessage }]);
+} finally {
+  setLoading(false);
+}
   }
 
   return (
