@@ -1,4 +1,4 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://ai-accounting-assistant-bixl.onrender.com";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
