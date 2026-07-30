@@ -1,70 +1,81 @@
 const express = require("express");
-const { GoogleGenAI } = require("@google/genai");
+const Groq = require("groq-sdk");
 require("dotenv").config();
 
 const { addEntry, queryEntries, getPLReport, getBalanceSheet, getAudit, MONTHS } = require("../aiTools");
 
 const router = express.Router();
 
-// Initialize Google Gemini Client
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Initialize Groq Client (GROQ_API_KEY .env me honi chahiye)
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// Function declarations for Gemini tools
+// Groq / OpenAI Compatible Tools Array Structure
 const tools = [
   {
-    functionDeclarations: [
-      {
-        name: "add_entry",
-        description: "Record a new income or expense entry, e.g. 'Add office rent 50000 for July' or 'aj bijli ka bill 50000 aya hai'.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            type: { type: "STRING", enum: ["income", "expense"] },
-            amount: { type: "NUMBER" },
-            category: { type: "STRING", description: "e.g. bijli, rent, maintenance, salary, supplies, utilities, marketing, sales, consulting, other" },
-            month: { type: "STRING", enum: MONTHS },
-            date: { type: "STRING", description: "YYYY-MM-DD, defaults to today if omitted" },
-            note: { type: "STRING" },
-          },
-          required: ["type", "amount", "category"],
+    type: "function",
+    function: {
+      name: "add_entry",
+      description: "Record a new income or expense entry, e.g. 'Add office rent 50000 for July' or 'aj bijli ka bill 50000 aya hai'.",
+      parameters: {
+        type: "object",
+        properties: {
+          type: { type: "string", enum: ["income", "expense"] },
+          amount: { type: "number" },
+          category: { type: "string", description: "e.g. bijli, rent, maintenance, salary, supplies, utilities, marketing, sales, consulting, other" },
+          month: { type: "string", enum: MONTHS },
+          date: { type: "string", description: "YYYY-MM-DD, defaults to today if omitted" },
+          note: { type: "string" },
+        },
+        required: ["type", "amount", "category"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "query_entries",
+      description: "Look up and total existing entries, e.g. 'How much did we spend on utilities in March?'",
+      parameters: {
+        type: "object",
+        properties: {
+          type: { type: "string", enum: ["income", "expense"] },
+          category: { type: "string" },
+          month: { type: "string", enum: MONTHS },
+          startDate: { type: "string" },
+          endDate: { type: "string" },
         },
       },
-      {
-        name: "query_entries",
-        description: "Look up and total existing entries, e.g. 'How much did we spend on utilities in March?'",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            type: { type: "STRING", enum: ["income", "expense"] },
-            category: { type: "STRING" },
-            month: { type: "STRING", enum: MONTHS },
-            startDate: { type: "STRING" },
-            endDate: { type: "STRING" },
-          },
-        },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_pl_report",
+      description: "Generate a Profit & Loss statement, optionally for one month.",
+      parameters: {
+        type: "object",
+        properties: { month: { type: "string", enum: MONTHS } },
       },
-      {
-        name: "get_pl_report",
-        description: "Generate a Profit & Loss statement, optionally for one month.",
-        parameters: {
-          type: "OBJECT",
-          properties: { month: { type: "STRING", enum: MONTHS } },
-        },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_balance_sheet",
+      description: "Get a simplified cash-position balance sheet snapshot.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_audit",
+      description: "Run an audit for a month, flagging unusual or incomplete entries.",
+      parameters: {
+        type: "object",
+        properties: { month: { type: "string", enum: MONTHS } },
       },
-      {
-        name: "get_balance_sheet",
-        description: "Get a simplified cash-position balance sheet snapshot.",
-        parameters: { type: "OBJECT", properties: {} },
-      },
-      {
-        name: "get_audit",
-        description: "Run an audit for a month, flagging unusual or incomplete entries.",
-        parameters: {
-          type: "OBJECT",
-          properties: { month: { type: "STRING", enum: MONTHS } },
-        },
-      },
-    ],
+    },
   },
 ];
 
@@ -84,53 +95,67 @@ After a tool returns, reply in one short, natural sentence mixing Roman Urdu/Eng
 
 // POST /api/ai-chat
 router.post("/", async (req, res) => {
-  console.log('call chat');
-  
+  console.log("call chat via Groq");
+
   try {
     const { message, history = [] } = req.body;
     if (!message || !message.trim()) {
       return res.status(400).json({ error: "Message is required." });
     }
 
-    // Convert history format to text prompt context
-    let formattedPrompt = `${SYSTEM_PROMPT}\n\n`;
+    // OpenAI/Groq array format for messages
+    const messages = [
+      { role: "system", content: SYSTEM_PROMPT }
+    ];
+
+    // Previous history inject karna
     history.slice(-6).forEach((h) => {
-      formattedPrompt += `${h.role === "ai" ? "Assistant" : "User"}: ${h.text}\n`;
-    });
-    formattedPrompt += `User: ${message.trim()}`;
-
-    // Pass 1: Call Gemini model with tools
-    let response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: formattedPrompt,
-      config: {
-        tools: tools,
-      },
+      messages.push({
+        role: h.role === "ai" ? "assistant" : "user",
+        content: h.text,
+      });
     });
 
+    // Current user message
+    messages.push({ role: "user", content: message.trim() });
+
+    // Pass 1: Call Groq model with tools
+    const response = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: messages,
+      tools: tools,
+      tool_choice: "auto",
+    });
+
+    const responseMessage = response.choices[0].message;
     let toolResultPayload = null;
     let toolName = null;
-    let finalReply = response.text;
+    let finalReply = responseMessage.content;
 
-    // Check if Gemini requested a function/tool call
-    const functionCalls = response.functionCalls;
-    if (functionCalls && functionCalls.length > 0) {
-      const call = functionCalls[0];
-      toolName = call.name;
-      const args = call.args || {};
+    // Check if Groq requested function tool call
+    if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
+      const toolCall = responseMessage.tool_calls[0];
+      toolName = toolCall.function.name;
+      const args = JSON.parse(toolCall.function.arguments || "{}");
 
       const impl = TOOL_IMPL[toolName];
       toolResultPayload = impl ? await impl(args) : { error: "Unknown tool." };
 
-      // Pass 2: Send tool results back to Gemini for final response
-      const secondPassPrompt = `${formattedPrompt}\nTool '${toolName}' executed with result: ${JSON.stringify(toolResultPayload)}.\nProvide a short, concise summary response to the user.`;
-
-      const secondResponse = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: secondPassPrompt,
+      // Append assistant's response and tool result to messages array
+      messages.push(responseMessage);
+      messages.push({
+        role: "tool",
+        tool_call_id: toolCall.id,
+        content: JSON.stringify(toolResultPayload),
       });
 
-      finalReply = secondResponse.text;
+      // Pass 2: Send tool output back to Groq for summary response
+      const secondResponse = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: messages,
+      });
+
+      finalReply = secondResponse.choices[0].message.content;
     }
 
     res.json({
@@ -141,9 +166,9 @@ router.post("/", async (req, res) => {
   } catch (err) {
     console.error("ai-chat error:", err.message);
 
-    if (err.message && err.message.includes("429")) {
+    if (err.message && (err.message.includes("429") || err.message.includes("rate_limit"))) {
       return res.status(429).json({
-        reply: "Boht tez requests aa rahi hain, 20 seconds baad try karein.",
+        reply: "Boht tez requests aa rahi hain, thodi der baad try karein.",
         error: "Rate limit hit",
       });
     }
